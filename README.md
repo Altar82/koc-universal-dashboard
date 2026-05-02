@@ -16,7 +16,7 @@ To install the dashboard on your server, simply run the following command in you
 🛠 Manual Integration
 If you prefer to add it manually to your compose.yaml, add the following service:
 
-```  dashboard:
+```dashboard:
     image: ghcr.io/YOUR_GITHUB_USERNAME/koc-dashboard:latest
     container_name: koc-dashboard-${SERVER_NAME}
     environment:
