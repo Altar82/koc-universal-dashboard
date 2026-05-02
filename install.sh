@@ -1,64 +1,29 @@
 #!/bin/bash
-# KOC Universal Dashboard - Smart Installer by Altar82
+# KOC Universal Dashboard - Pro Installer (Fixed Build Context)
 
 echo "------------------------------------------"
 echo "  KOC UNIVERSAL DASHBOARD INSTALLER      "
 echo "------------------------------------------"
 
-# 0. Permessi di Root
-if [ "$EUID" -ne 0 ]; then 
-  echo "❌ Error: Please run with sudo: curl -sSL ... | sudo bash"
-  exit 1
-fi
+# 1. Rilevamento automatico (Zero-Config)
+echo "🔍 Analisi dell'infrastruttura KOC..."
 
-# 1. Trova il container del Database per rubare la rete
-echo "🔍 Detecting existing KOC network..."
-CONTAINER_ID=$(docker ps --filter "name=postgres" --filter "name=db" --format "{{.ID}}" | head -n 1)
-
-if [ -z "$CONTAINER_ID" ]; then
-    echo "❌ Error: Database container not found. Is your server running?"
-    exit 1
-fi
-
-NETWORK_NAME=$(docker inspect $CONTAINER_ID -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')
-echo "✅ Network found: $NETWORK_NAME"
-
-#!/bin/bash
-# KOC Universal Dashboard - Pro Installer (Zero-Config)
-
-echo "------------------------------------------"
-echo "  KOC UNIVERSAL DASHBOARD INSTALLER      "
-echo "------------------------------------------"
-
-# 1. Rilevamento automatico dai container in esecuzione
-echo "🔍 Analisi dell'infrastruttura KOC in corso..."
-
-# Trova i nomi esatti dei container DB e Redis
+# Trova i container reali di Postgres e Redis
 DB_CONTAINER=$(docker ps --filter "name=postgres" --filter "name=db" --format "{{.Names}}" | head -n 1)
 REDIS_CONTAINER=$(docker ps --filter "name=redis" --format "{{.Names}}" | head -n 1)
 
 if [ -z "$DB_CONTAINER" ] || [ -z "$REDIS_CONTAINER" ]; then
-    echo "❌ Errore: Non trovo i container di Postgres o Redis."
-    echo "Assicurati che il tuo server KOC sia avviato."
+    echo "❌ Errore: Container Postgres o Redis non trovati."
     exit 1
 fi
 
-# Estrae la rete esistente
+# Estrae rete e credenziali dal container attivo
 NETWORK_NAME=$(docker inspect $DB_CONTAINER -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')
+DB_USER=$(docker exec $DB_CONTAINER printenv POSTGRES_USER || echo "postgres")
+DB_PASS=$(docker exec $DB_CONTAINER printenv POSTGRES_PASSWORD || echo "postgres")
+DB_NAME=$(docker exec $DB_CONTAINER printenv POSTGRES_DB || echo "koc")
 
-# Estrae le credenziali reali dal container DB (senza indovinare)
-DB_USER=$(docker exec $DB_CONTAINER printenv POSTGRES_USER)
-DB_PASS=$(docker exec $DB_CONTAINER printenv POSTGRES_PASSWORD)
-DB_NAME=$(docker exec $DB_CONTAINER printenv POSTGRES_DB)
-
-# Fallback di sicurezza se non settate esplicitamente
-DB_USER=${DB_USER:-postgres}
-DB_PASS=${DB_PASS:-postgres}
-DB_NAME=${DB_NAME:-koc}
-
-echo "✅ Rete rilevata: $NETWORK_NAME"
-echo "✅ Database: $DB_CONTAINER (User: $DB_USER)"
-echo "✅ Redis: $REDIS_CONTAINER"
+echo "✅ Rete: $NETWORK_NAME | DB: $DB_CONTAINER"
 
 # 2. Setup Directory
 REPO_DIR="koc-universal-dashboard"
@@ -68,12 +33,11 @@ fi
 cd "$REPO_DIR" || exit
 git pull
 
-# 3. Creazione del Compose pulito per la dashboard
-# Usiamo i nomi dei container come Host per sfruttare il DNS interno di Docker
-echo "⚙️ Generazione docker-compose.yml personalizzato..."
+# 3. Generazione Docker Compose (Uniformato su 'dashboard')
+echo "⚙️ Generazione file di configurazione..."
 cat <<EOF > docker-compose.yml
 services:
-  koc-dashboard:
+  dashboard:
     build: .
     container_name: koc-dashboard
     ports:
@@ -91,13 +55,16 @@ networks:
     name: $NETWORK_NAME
 EOF
 
-# 4. Build e Avvio
-echo "🏗 Avvio della dashboard..."
+# Rimuoviamo l'override se esiste per evitare conflitti di nomi vecchi
+rm -f docker-compose.override.yml
+
+# 4. Build e Avvio forzato
+echo "🏗 Avvio build della dashboard..."
 docker compose up -d --build
 
-# 5. Fine
+# 5. Output
 IP_ADDR=$(curl -4 -s https://ifconfig.me)
 echo "------------------------------------------"
-echo "✅ INSTALLAZIONE COMPLETATA CON SUCCESSO"
-echo "🌐 Accedi qui: http://$IP_ADDR:8501"
+echo "✅ INSTALLAZIONE COMPLETATA!"
+echo "🌐 URL: http://$IP_ADDR:8501"
 echo "------------------------------------------"
