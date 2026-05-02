@@ -4,7 +4,7 @@ echo "🚀 Setting up KOC Universal Dashboard..."
 # 1. Clone repository
 REPO_NAME="koc-universal-dashboard"
 if [ ! -d "$REPO_NAME" ]; then
-    git clone https://github.com/TUO_UTENTE/$REPO_NAME.git
+    git clone https://github.com/Altar82/$REPO_NAME.git
     cd $REPO_NAME
 else
     cd $REPO_NAME && git pull
