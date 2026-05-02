@@ -13,12 +13,17 @@ fi
 
 # 1. Network Discovery Logic
 echo "🔍 Detecting Docker network..."
-NETWORK_NAME=$(docker inspect postgres -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')
+# Cerca il primo container che ha "postgres" o "db" nel nome
+CONTAINER_ID=$(docker ps --filter "name=postgres" --filter "name=db" --format "{{.ID}}" | head -n 1)
 
-if [ -z "$NETWORK_NAME" ]; then
-    echo "❌ Error: 'postgres' container not found. Please ensure your KOC server is running."
+if [ -z "$CONTAINER_ID" ]; then
+    echo "❌ Error: Database container not found."
     exit 1
 fi
+
+# Ottiene la rete usando l'ID trovato
+NETWORK_NAME=$(docker inspect $CONTAINER_ID -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')
+
 echo "✅ Network detected: $NETWORK_NAME"
 
 # 2. Setup Directory
