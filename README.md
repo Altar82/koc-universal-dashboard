@@ -1,2 +1,37 @@
-# koc-universal-dashboard
-KOC Universal Server Dashboard ​A powerful, lightweight, and universal web-based management dashboard for Knockout City private servers. Built with Python and Streamlit, it provides real-time insights into your server's database and session data.
+🎮 KOC Universal Server Dashboard
+A powerful, lightweight, and universal web-based management dashboard for Knockout City private servers. Built with Python and Streamlit, it provides real-time insights into your server's database and session data.
+
+✨ Features
+Real-time Metrics: Monitor online players, registered users, and server capacity at a glance.
+Player Management: Full searchable list of registered players with join dates.
+Economy Tracker: Visualize the global distribution of Holobux and style chips.
+Universal Compatibility: Automatically detects server settings from your existing Docker environment variables.
+Zero Configuration: No need to hardcode passwords or IPs. It inherits everything from your KOC Docker setup.
+
+🚀 One-Command Installation
+To install the dashboard on your server, simply run the following command in your terminal:
+
+```curl -sSL https://raw.githubusercontent.com/Altar82/koc-universal-dashboard/main/install.sh | bash```
+
+🛠 Manual Integration
+If you prefer to add it manually to your compose.yaml, add the following service:
+
+```  dashboard:
+    image: ghcr.io/YOUR_GITHUB_USERNAME/koc-dashboard:latest
+    container_name: koc-dashboard-${SERVER_NAME}
+    environment:
+      - SERVER_NAME=${SERVER_NAME}
+      - KOC_BACKEND_DB=${KOC_BACKEND_DB}
+      - KOC_BACKEND_REDIS_DB_HOST=${KOC_BACKEND_REDIS_DB_HOST}
+      - DATABASE_URL=${DATABASE_URL}
+    ports:
+      - "8501:8501"
+    restart: always```
+
+📋 Prerequisites
+A running Knockout City Private Server environment (Docker).
+Existing postgres and redis services within the same Docker network.
+🔒 Security
+This dashboard is intended for internal management. It is highly recommended to:
+Use a firewall to restrict access to port 8501.
+Or use a reverse proxy (like Nginx or Traefik) with Basic Auth to protect the dashboard.
