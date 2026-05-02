@@ -1,140 +1,188 @@
 import streamlit as st
-import pandas as pd
-import psycopg2
-import redis
 import os
-import time
-from datetime import datetime
+import redis
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from streamlit_autorefresh import st_autorefresh
+from datetime import datetime
 
-# Aggiorna la pagina ogni 10 secondi (10000 millisecondi)
-# 'count' è una variabile interna che aumenta a ogni refresh
-count = st_autorefresh(interval=10000, limit=None, key="fizzbuzzcounter")
+# --- CONFIGURAZIONE PAGINA ---
+st.set_page_config(
+    page_title="KOC Universal Dashboard",
+    page_icon="🤜",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# --- CONFIGURAZIONE UNIVERSALE ---
-SERVER_NAME = os.getenv("SERVER_NAME", "KOC Private Server")
-DB_URL = os.getenv("DATABASE_URL") or os.getenv("KOC_BACKEND_DB")
-REDIS_H = os.getenv("REDIS_HOST") or os.getenv("KOC_BACKEND_REDIS_DB_HOST") or "redis"
-REDIS_P = os.getenv("REDIS_PORT") or os.getenv("KOC_BACKEND_REDIS_DB_PORT") or "6379"
+# Styling CSS per richiamare il look "Knockout City"
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    .stMetric { background-color: #1f2937; border-radius: 10px; padding: 15px; border: 1px solid #ff00ff; }
+    .stButton>button { background-color: #ff00ff; color: white; border-radius: 20px; border: none; width: 100%; font-weight: bold; }
+    .stButton>button:hover { background-color: #00ffff; color: black; }
+    .stTextInput>div>div>input { background-color: #1f2937; color: white; border: 1px solid #00ffff; }
+    h1, h2, h3 { color: #00ffff !important; text-transform: uppercase; font-family: 'Arial Black'; }
+    .player-card { background: #1f2937; padding: 10px; border-radius: 8px; margin-bottom: 5px; border-left: 5px solid #ff00ff; }
+    </style>
+    """, unsafe_allow_html=True)
 
-st.set_page_config(page_title=SERVER_NAME, page_icon="🎮", layout="wide")
+# --- CONFIGURAZIONE AMBIENTE ---
+DATABASE_URL = os.getenv("DATABASE_URL")
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+SERVER_NAME = os.getenv("SERVER_NAME", "Nova")
+MAX_PLAYERS = os.getenv("MAX_PLAYERS", "30")
 
-# Helpers per la formattazione (Source 2)
+# Auto-refresh ogni 10 secondi
+st_autorefresh(interval=10000, key="global_refresh")
+
+# --- HELPER FUNCTIONS ---
 def time_ago(ts):
     if not ts: return "Never"
-    try:
-        dt = datetime.fromtimestamp(int(ts)/1000) if len(str(ts)) > 10 else datetime.fromtimestamp(int(ts))
-        diff = datetime.now() - dt
-        if diff.days > 0: return f"{diff.days} days ago"
-        if diff.seconds > 3600: return f"{diff.seconds // 3600}h ago"
-        return f"{diff.seconds // 60}m ago"
-    except: return "Unknown"
-
-@st.cache_resource
-def init_conns():
-    pg = psycopg2.connect(DB_URL)
-    r = redis.Redis(host=REDIS_H, port=int(REDIS_P), decode_responses=True)
-    return pg, r
-
-try:
-    pg, r = init_conns()
-
-    # --- HEADER & STATUS (Source 3) ---
-    st.title(f"🌐 {SERVER_NAME} Network")
+    if isinstance(ts, (int, float, str)) and str(ts).isdigit():
+        dt = datetime.fromtimestamp(int(ts) / 1000)
+    elif isinstance(ts, datetime):
+        dt = ts
+    else:
+        return "Unknown"
     
-    # BOX: Stato Server
-    with st.container():
-        st.markdown("### 🔌 System Health")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Status", "🟢 ONLINE")
-        # Player count da Redis (Source 4)
-        online_uids = set()
-        for key in r.keys('backend:users:*'):
-            online_uids.update(r.smembers(key))
-        c2.metric("Active Connections", len(online_uids))
-        c3.info("Uptime: Managed by Docker")
+    diff = (datetime.now() - dt).total_seconds()
+    if diff < 60: return "Just now"
+    if diff < 3600: return f"{int(diff//60)}m ago"
+    if diff < 86400: return f"{int(diff//3600)}h ago"
+    return dt.strftime("%Y-%m-%d")
 
-    # --- TABS PRINCIPALI ---
-    tab_live, tab_search, tab_leaderboard = st.tabs(["🔴 LIVE ACTIVITY", "🔍 BRAWLER DOSSIER", "🏆 RANKINGS"])
+PRESENCE_NAMES = {
+    '0': '🏠 Hideout',
+    '2': '🏢 Street Play',
+    '6': '🔒 Private Match',
+    '7': '👥 Lobby',
+    '8': '🎯 Training',
+}
 
-    # 1. LIVE ACTIVITY (Logica Gruppi Source 4)
-    with tab_live:
-        st.subheader("Current Sessions & Groups")
-        group_keys = r.keys('group_members:*')
-        processed = set()
+PLATFORM_MAP = {
+    'win64': '💻 PC',
+    'switch': '🎮 Switch',
+    'ps4': '🎮 PlayStation',
+    'xbox': '🎮 Xbox'
+}
 
-        if not online_uids:
-            st.info("No brawlers online at the moment.")
-        else:
-            for g_key in group_keys:
-                leader_id = g_key.split(':')[-1]
-                members = r.smembers(g_key)
-                if leader_id in online_uids:
-                    with st.expander(f"👥 Group Leader: {r.hget(f'user:session:{leader_id}', 'username') or leader_id}", expanded=True):
-                        cols = st.columns(len(members) if len(members) > 0 else 1)
-                        for i, mid in enumerate(members):
-                            name = r.hget(f"user:session:{mid}", "username") or mid
-                            cols[i % len(cols)].write(f"👤 {name}")
-                            processed.add(mid)
+# --- DATABASE LOGIC ---
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
+def get_redis_connection():
+    return redis.Redis(host=REDIS_HOST, port=6379, decode_responses=True)
+
+# --- UI LAYOUT ---
+st.title(f"🤜 {SERVER_NAME.upper()} // COMMAND CENTER")
+
+tab_monitor, tab_stats, tab_friends = st.tabs(["📡 LIVE MONITOR", "📊 BRAWLER DOSSIER", "🤝 FRIENDSHIP"])
+
+# --- TAB 1: MONITOR ONLINE ---
+with tab_monitor:
+    try:
+        r = get_redis_connection()
+        instance_keys = r.keys('backend:users:*')
+        all_uids = set()
+        for key in instance_keys:
+            all_uids.update(r.smembers(key))
+        
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            st.metric("BRAWLERS ONLINE", f"{len(all_uids)} / {MAX_PLAYERS}")
             
-            # Solo Players
-            solos = online_uids - processed
-            if solos:
-                st.markdown("---")
-                st.markdown("**Solo Players:**")
-                for sid in solos:
-                    name = r.hget(f"user:session:{sid}", "username") or sid
-                    st.write(f"🏃 {name}")
+            st.subheader("🏆 TOP 10 MMR")
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT u.username, s.current_mmr FROM skill s JOIN users u ON u.id = s.user_id ORDER BY s.current_mmr DESC LIMIT 10")
+                    for i, row in enumerate(cur.fetchall()):
+                        st.markdown(f"**#{i+1}** {row['username']} `{row['current_mmr']}`")
 
-    # 2. SEARCH & FRIENDSHIP (Source 2)
-    with tab_search:
-        st.subheader("Search Brawler Stats")
-        search_col, friend_col = st.columns(2)
+        with col2:
+            st.subheader("🎮 CURRENT SESSIONS")
+            if not all_uids:
+                st.info("No brawlers in the streets right now...")
+            else:
+                processed_uids = set()
+                group_keys = r.keys('group_members:*')
+                
+                # Render Gruppi
+                for g_key in group_keys:
+                    leader_id = g_key.split(':')[1]
+                    members = r.smembers(g_key)
+                    if leader_id in all_uids:
+                        session = r.hgetall(f"user:session:{leader_id}")
+                        if session:
+                            st.markdown(f"""<div class='player-card'>
+                                👑 <b>{session.get('username')}</b>'s Group ({len(members)} members)<br>
+                                <small>📍 {PRESENCE_NAMES.get(session.get('rich_presence'), 'Online')}</small>
+                            </div>""", unsafe_allow_html=True)
+                            processed_uids.add(leader_id)
+                            processed_uids.update(members)
 
-        with search_col:
-            st.markdown("#### 🕵️ Statistics Lookup")
-            user_input = st.text_input("Enter Username", key="search_box")
-            if user_input:
-                query = """
-                    SELECT u.id, u.username, u.inserted_at, u.last_authenticated_at, 
-                           s.current_mmr, s.wins, s.total_games_played, s.mvps
-                    FROM users u
-                    JOIN skill s ON u.id = s.user_id
-                    WHERE u.username ILIKE %s LIMIT 1;
-                """
-                df = pd.read_sql(query, pg, params=(user_input,))
-                if not df.empty:
-                    d = df.iloc[0]
-                    st.success(f"Dossier found for {d['username']}")
-                    st.json({
-                        "MMR": d['current_mmr'],
-                        "Wins": d['wins'],
-                        "Matches": d['total_games_played'],
-                        "Joined": time_ago(d['inserted_at'])
-                    })
+                # Render Solo
+                solo_uids = [uid for uid in all_uids if uid not in processed_uids]
+                for uid in solo_uids:
+                    session = r.hgetall(f"user:session:{uid}")
+                    if session:
+                        st.markdown(f"""<div class='player-card' style='border-left-color: #00ffff;'>
+                            👤 <b>{session.get('username')}</b><br>
+                            <small>📍 {PRESENCE_NAMES.get(session.get('rich_presence'), 'Online')}</small>
+                        </div>""", unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"Redis Connection Error: {e}")
+
+# --- TAB 2: DOSSIER (STAT) ---
+with tab_stats:
+    st.subheader("🔍 ANALYZE BRAWLER")
+    search_user = st.text_input("Enter Username", key="search_input")
+    if search_user:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT u.*, s.*, sr.raw_xp_s6 as xp 
+                    FROM users u 
+                    JOIN skill s ON u.id = s.user_id 
+                    LEFT JOIN street_rank sr ON u.id = sr.user_id 
+                    WHERE u.username ILIKE %s LIMIT 1
+                """, (search_user,))
+                d = cur.fetchone()
+                
+                if d:
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("MMR", d['current_mmr'])
+                    c2.metric("WINS", d['wins'])
+                    c3.metric("WIN STREAK", f"🔥 {d['win_streak']}")
+                    
+                    st.write(f"**Platform:** {PLATFORM_MAP.get(d['last_authenticated_platform'], d['last_authenticated_platform'])}")
+                    st.write(f"**Last Seen:** {time_ago(d['last_authenticated_at'])}")
+                    st.progress(min((d['xp'] or 0) % 10000 / 10000, 1.0), text=f"XP: {d['xp'] or 0}")
                 else:
-                    st.error("Brawler not found.")
+                    st.warning("Brawler not found in archives.")
 
-        with friend_col:
-            st.markdown("#### 🤝 Send Friend Request")
-            sender = st.text_input("Your Username")
-            target = st.text_input("Recipient Username")
-            if st.button("🚀 Send Request"):
-                # Logica del bot Friendship
-                st.info(f"Simulating request from {sender} to {target}...")
-                # Qui andrebbe la INSERT INTO friend_requests del Source 2
-
-    # 3. LEADERBOARD (Source 4)
-    with tab_leaderboard:
-        st.subheader("Top 20 Street MMR")
-        query_mmr = """
-            SELECT u.username, s.current_mmr 
-            FROM skill s 
-            JOIN users u ON u.id = s.user_id 
-            ORDER BY s.current_mmr DESC LIMIT 20
-        """
-        df_mmr = pd.read_sql(query_mmr, pg)
-        st.table(df_mmr)
-
-except Exception as e:
-    st.error(f"⚠️ Connection Error: {e}")
+# --- TAB 3: FRIENDSHIP ---
+with tab_friends:
+    st.subheader("🤝 DISPATCH FRIEND REQUEST")
+    c_s, c_r = st.columns(2)
+    sender = c_s.text_input("Your Username")
+    target = c_r.text_input("Target Username")
+    
+    if st.button("SEND REQUEST"):
+        if sender and target:
+            try:
+                with get_db_connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT id, username FROM users WHERE username ILIKE %s OR username ILIKE %s", (sender, target))
+                        found = cur.fetchall()
+                        if len(found) >= 2:
+                            s_id = next(f['id'] for f in found if f['username'].lower() == sender.lower())
+                            t_id = next(f['id'] for f in found if f['username'].lower() == target.lower())
+                            cur.execute("INSERT INTO friend_requests (sender_user_id, recipient_user_id, sender_persona_kind) VALUES (%s, %s, 0) ON CONFLICT DO NOTHING", (s_id, t_id))
+                            conn.commit()
+                            st.success(f"Friend request sent to {target}!")
+                        else:
+                            st.error("Could not find one or both brawlers.")
+            except Exception as e:
+                st.error(f"DB Error: {e}")
