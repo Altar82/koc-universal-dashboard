@@ -11,7 +11,7 @@ A powerful, lightweight, and universal web-based management dashboard for Knocko
 🚀 One-Command Installation
 To install the dashboard on your server, simply run the following command in your terminal:
 
-```curl -sSL https://raw.githubusercontent.com/Altar82/koc-universal-dashboard/main/install.sh | bash```
+```curl -sSL https://raw.githubusercontent.com/Altar82/koc-universal-dashboard/main/install.sh | sudo bash```
 
 🛠 Manual Integration
 If you prefer to add it manually to your compose.yaml, add the following service:
