@@ -5,6 +5,11 @@ import redis
 import os
 import time
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh
+
+# Aggiorna la pagina ogni 10 secondi (10000 millisecondi)
+# 'count' è una variabile interna che aumenta a ogni refresh
+count = st_autorefresh(interval=10000, limit=None, key="fizzbuzzcounter")
 
 # --- CONFIGURAZIONE UNIVERSALE ---
 SERVER_NAME = os.getenv("SERVER_NAME", "KOC Private Server")
