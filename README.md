@@ -2,11 +2,11 @@
 A powerful, lightweight, and universal web-based management dashboard for Knockout City private servers. Built with Python and Streamlit, it provides real-time insights into your server's database and session data.
 
 ✨ Features
-Real-time Metrics: Monitor online players, registered users, and server capacity at a glance.
-Player Management: Full searchable list of registered players with join dates.
-Economy Tracker: Visualize the global distribution of Holobux and style chips.
-Universal Compatibility: Automatically detects server settings from your existing Docker environment variables.
-Zero Configuration: No need to hardcode passwords or IPs. It inherits everything from your KOC Docker setup.
+- **[LIVE STATUS]**: Real-time CPU/RAM and Player Uptime monitoring.
+- **[GAME MONITOR]**: Visual group detection and session tracking (Hideout, Street Play, etc.).
+- **[BRAWLER DOSSIER]**: Deep-search player stats, wins, MVPs, and join dates.
+- **[RANKINGS]**: Live Top 20 MMR Leaderboard.
+- **[FRIENDSHIP]**: Send in-game friend requests via web interface
 
 🚀 One-Command Installation
 To install the dashboard on your server, simply run the following command in your terminal:
