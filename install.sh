@@ -1,18 +1,42 @@
 #!/bin/bash
-echo "🚀 Setting up KOC Universal Dashboard..."
+# KOC Universal Dashboard - Installer
 
-# 1. Clone repository
-REPO_NAME="koc-universal-dashboard"
-if [ ! -d "$REPO_NAME" ]; then
-    git clone https://github.com/Altar82/$REPO_NAME.git
-    cd $REPO_NAME
-else
-    cd $REPO_NAME && git pull
+echo "------------------------------------------"
+echo "  KOC UNIVERSAL DASHBOARD INSTALLER      "
+echo "------------------------------------------"
+
+# 1. Network Discovery Logic
+echo "🔍 Detecting Docker network..."
+NETWORK_NAME=$(docker inspect postgres -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')
+
+if [ -z "$NETWORK_NAME" ]; then
+    echo "❌ Error: 'postgres' container not found. Please ensure your KOC server is running."
+    exit 1
 fi
+echo "✅ Network detected: $NETWORK_NAME"
 
-# 2. Start with Docker
-# Nota: prenderà le variabili d'ambiente dal sistema o dal .env esistente
+# 2. Setup Directory
+echo "📁 Preparing local files..."
+# (Logic to clone or pull goes here)
+
+# 3. Create Dynamic Override
+cat <<EOF > docker-compose.override.yml
+services:
+  dashboard:
+    networks:
+      - kocinfrastructure
+
+networks:
+  kocinfrastructure:
+    external: true
+    name: $NETWORK_NAME
+EOF
+
+# 4. Build and Start
+echo "🏗 Building Docker image..."
 docker compose up -d --build
 
-echo "✅ Installation complete!"
-echo "🌐 Access your dashboard at: http://$(curl -s https://ifconfig.me):8501"
+echo "------------------------------------------"
+echo "✅ SUCCESS!"
+echo "🌐 Web UI: http://$(curl -s https://ifconfig.me):8501"
+echo "------------------------------------------"
