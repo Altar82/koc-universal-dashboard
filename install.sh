@@ -45,7 +45,14 @@ fi
 cd "$REPO_DIR" || exit
 git pull
 
-# 3. Generazione Docker Compose (Uniformato su 'dashboard')
+# 3. Controllo e rimozione container esistente per evitare conflitti
+echo "🧹 Pulizia versioni precedenti..."
+if [ "$(docker ps -aq -f name=koc-dashboard)" ]; then
+    echo "⚠️ Trovato container koc-dashboard esistente. Rimozione in corso..."
+    docker rm -f koc-dashboard
+fi
+
+# 4. Generazione Docker Compose (Uniformato su 'dashboard')
 echo "⚙️ Generazione file di configurazione..."
 cat <<EOF > docker-compose.yml
 services:
@@ -72,11 +79,11 @@ EOF
 # Rimuoviamo l'override se esiste per evitare conflitti di nomi vecchi
 rm -f docker-compose.override.yml
 
-# 4. Build e Avvio forzato
+# 5. Build e Avvio forzato
 echo "🏗 Avvio build della dashboard..."
 docker compose up -d --build
 
-# 5. Output
+# 6. Output
 IP_ADDR=$(curl -4 -s https://ifconfig.me)
 echo "------------------------------------------"
 echo "✅ INSTALLAZIONE COMPLETATA!"
