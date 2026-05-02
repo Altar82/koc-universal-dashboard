@@ -2,10 +2,10 @@
 A powerful, lightweight, and universal web-based management dashboard for Knockout City private servers. Built with Python and Streamlit, it provides real-time insights into your server's database and session data.
 
 ✨ Features
-- **[LIVE STATUS]**: Real-time CPU/RAM and Player Uptime monitoring.
+- **[LIVE STATUS]**:  Player Uptime monitoring.
 - **[GAME MONITOR]**: Visual group detection and session tracking (Hideout, Street Play, etc.).
 - **[BRAWLER DOSSIER]**: Deep-search player stats, wins, MVPs, and join dates.
-- **[RANKINGS]**: Live Top 20 MMR Leaderboard.
+- **[RANKINGS]**: Live Top 10 MMR Leaderboard.
 - **[FRIENDSHIP]**: Send in-game friend requests via web interface
 
 🚀 One-Command Installation
