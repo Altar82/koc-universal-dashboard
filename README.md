@@ -18,7 +18,7 @@ If you prefer to add it manually to your compose.yaml, add the following service
 
 ```  
   dashboard:
-    image: ghcr.io/YOUR_GITHUB_USERNAME/koc-dashboard:latest
+    image: ghcr.io/Altar82/koc-dashboard:latest
     container_name: koc-dashboard-${SERVER_NAME}
     environment:
       - SERVER_NAME=${SERVER_NAME}
