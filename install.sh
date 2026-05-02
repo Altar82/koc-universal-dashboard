@@ -4,6 +4,12 @@
 echo "------------------------------------------"
 echo "  KOC UNIVERSAL DASHBOARD INSTALLER      "
 echo "------------------------------------------"
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then 
+  echo "❌ Please run the installer with sudo or as root:"
+  echo "curl -sSL ... | sudo bash"
+  exit 1
+fi
 
 # 1. Network Discovery Logic
 echo "🔍 Detecting Docker network..."
